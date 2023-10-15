@@ -55,3 +55,27 @@ pub fn perform_alpha_bleeding_aux(from: &str, to: &str) -> ImageResult<()> {
     perform_alpha_bleeding(&source, &mut target);
     target.save(to)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_alpha_bleeding() {
+        let output = "tests/alpha_bleeding_using_rs.png";
+        let result = perform_alpha_bleeding_aux("tests/original.png", output);
+        assert!(matches!(result, Ok(_)));
+        // let original = image::open("tests/original.png").unwrap().into_rgba8();
+        // let output = image::open(output).unwrap().into_rgba8();
+        // let expected = image::open("tests/alpha_bleeding_using_d.png").unwrap().into_rgba8();
+        // for x in 0..output.width() {
+        //     for y in 0..output.height() {
+        //         let pixel1 = output.get_pixel(x, y);
+        //         let pixel2 = expected.get_pixel(x, y);
+        //         let original_pixel = original.get_pixel(x, y);
+        //         if pixel1 != pixel2 {
+        //             println!("position: {}, {}, original: {:?}, output: {:?}, expected: {:?}", x, y, original_pixel, pixel1, pixel2);
+        //         }
+        //     }
+        // }
+    }
+}
