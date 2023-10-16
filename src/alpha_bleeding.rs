@@ -65,8 +65,6 @@ fn perform_alpha_bleeding(target: &mut RgbaImage) {
                 }
             }
             let (r, g, b) = ((r / count) as u8, (g / count) as u8, (b / count) as u8);
-            // let index = (y * target.width() + x) as usize;
-            // processed_pixels[index] = true;
             pending_modify_pixels.push((*x, *y, Rgba([r, g, b, 255])));
             pending_clear_pixels.push((*x, *y));
         }
