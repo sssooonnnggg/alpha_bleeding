@@ -77,9 +77,9 @@ fn perform_alpha_bleeding(target: &mut RgbaImage) {
         pending_process_next_pass.clear();
     }
 
-    // for (x, y) in pending_clear_pixels {
-    //     target.get_pixel_mut(x, y)[3] = 0;
-    // }
+    for (x, y) in pending_clear_pixels {
+        target.get_pixel_mut(x, y)[3] = 0;
+    }
 }
 
 pub fn perform_alpha_bleeding_aux(from: &str, to: &str) -> ImageResult<()> {
@@ -94,28 +94,15 @@ mod tests {
     use super::*;
     #[test]
     fn test_alpha_bleeding() {
+        let original = "tests/original.png";
         let output = "tests/alpha_bleeding_using_rs.png";
-        let result = perform_alpha_bleeding_aux("tests/original.png", output);
+        let compared = "tests/alpha_bleeding_using_d.png";
+        let result = perform_alpha_bleeding_aux(original, output);
         assert!(matches!(result, Ok(_)));
-        let original = image::open("tests/original.png").unwrap().into_rgba8();
         let output = image::open(output).unwrap().into_rgba8();
-        let expected = image::open("tests/alpha_bleeding_using_c.png")
+        let expected = image::open(compared)
             .unwrap()
             .into_rgba8();
-        // assert_eq!(output, expected);
-        for y in 0..output.height() {
-            for x in 0..output.width() {
-                let pixel1 = output.get_pixel(x, y);
-                let pixel2 = expected.get_pixel(x, y);
-                let original_pixel = original.get_pixel(x, y);
-
-                if pixel1 != pixel2 {
-                    println!(
-                        "position: {}, {}, original: {:?}, output: {:?}, expected: {:?}",
-                        x, y, original_pixel, pixel1, pixel2
-                    );
-                }
-            }
-        }
+        assert_eq!(output, expected);
     }
 }
