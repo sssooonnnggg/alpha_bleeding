@@ -1,6 +1,6 @@
-use image::{Rgba, RgbaImage, ImageResult};
+use image::{ImageResult, Rgba, RgbaImage};
 
-fn get_pixels_around(image: &RgbaImage, x: u32, y: u32) -> Vec<Rgba<u8>> {
+fn get_pixels_around(image: &RgbaImage, x: u32, y: u32) -> Vec<(Rgba<u8>, u32, u32)> {
     let mut pixels = Vec::new();
     for i in -1..2 {
         for j in -1..2 {
@@ -17,42 +17,75 @@ fn get_pixels_around(image: &RgbaImage, x: u32, y: u32) -> Vec<Rgba<u8>> {
             if x >= image.width() || y >= image.height() {
                 continue;
             }
-            pixels.push(*image.get_pixel(x, y));
+            let pixel = image.get_pixel(x, y);
+            pixels.push((*pixel, x, y));
         }
     }
     pixels
 }
 
-fn is_edge_pixel(image: &RgbaImage, pixel: &Rgba<u8>, x: u32, y: u32) -> bool {
-    pixel[3] == 0 && get_pixels_around(image, x, y).iter().any(|p| p[3] > 0)
-}
+fn perform_alpha_bleeding(target: &mut RgbaImage) {
+    let mut processed_pixels = vec![false; target.width() as usize * target.height() as usize];
+    let mut pending_process_pixels = Vec::new();
+    let mut pending_clear_pixels = Vec::new();
 
-fn perform_alpha_bleeding(source: &RgbaImage, target: &mut RgbaImage) {
-    for x in 0..source.width() {
-        for y in 0..source.height() {
-            let pixel = source.get_pixel(x, y);
-            if is_edge_pixel(source, pixel, x, y) {
-                let pixels_around = get_pixels_around(source, x, y);
-                let (mut r, mut g, mut b) = (0, 0, 0);
-                let count = pixels_around
-                    .iter()
-                    .map(|pixel| {
-                        r += pixel[0] as u32;
-                        g += pixel[1] as u32;
-                        b += pixel[2] as u32;
-                    })
-                    .count() as u32;
-                let (r, g, b) = ((r / count) as u8, (g / count) as u8, (b / count) as u8);
-                target.put_pixel(x, y, Rgba([r, g, b, 0]));
+    for y in 0..target.height() {
+        for x in 0..target.width() {
+            let pixel = target.get_pixel(x, y);
+            if pixel[3] == 0 {
+                if get_pixels_around(target, x, y).iter().any(|p| p.0[3] > 0) {
+                    pending_process_pixels.push((x, y));
+                    processed_pixels[(y * target.width() + x) as usize] = true;
+                }
+            } else {
+                processed_pixels[(target.width() * y + x) as usize] = true;
             }
         }
     }
+
+    let mut pending_process_next_pass = Vec::new();
+    while !pending_process_pixels.is_empty() {
+        let mut pending_modify_pixels = Vec::new();
+        for (x, y) in pending_process_pixels.iter() {
+            let pixels_around = get_pixels_around(target, *x, *y);
+            let (mut r, mut g, mut b) = (0, 0, 0);
+            let mut count = 0;
+            for (pixel, x, y) in pixels_around.iter() {
+                let index = (y * target.width() + x) as usize;
+                if pixel[3] > 0 {
+                    r += pixel[0] as u32;
+                    g += pixel[1] as u32;
+                    b += pixel[2] as u32;
+                    count += 1;
+                } else {
+                    if !processed_pixels[index] {
+                        processed_pixels[index] = true;
+                        pending_process_next_pass.push((*x, *y));
+                    }
+                }
+            }
+            let (r, g, b) = ((r / count) as u8, (g / count) as u8, (b / count) as u8);
+            // let index = (y * target.width() + x) as usize;
+            // processed_pixels[index] = true;
+            pending_modify_pixels.push((*x, *y, Rgba([r, g, b, 255])));
+            pending_clear_pixels.push((*x, *y));
+        }
+        for (x, y, pixel) in pending_modify_pixels.iter() {
+            target.put_pixel(*x, *y, *pixel);
+        }
+        std::mem::swap(&mut pending_process_pixels, &mut pending_process_next_pass);
+        pending_process_next_pass.clear();
+    }
+
+    // for (x, y) in pending_clear_pixels {
+    //     target.get_pixel_mut(x, y)[3] = 0;
+    // }
 }
 
 pub fn perform_alpha_bleeding_aux(from: &str, to: &str) -> ImageResult<()> {
     let source = image::open(from)?.into_rgba8();
     let mut target = source.clone();
-    perform_alpha_bleeding(&source, &mut target);
+    perform_alpha_bleeding(&mut target);
     target.save(to)
 }
 
@@ -64,18 +97,25 @@ mod tests {
         let output = "tests/alpha_bleeding_using_rs.png";
         let result = perform_alpha_bleeding_aux("tests/original.png", output);
         assert!(matches!(result, Ok(_)));
-        // let original = image::open("tests/original.png").unwrap().into_rgba8();
-        // let output = image::open(output).unwrap().into_rgba8();
-        // let expected = image::open("tests/alpha_bleeding_using_d.png").unwrap().into_rgba8();
-        // for x in 0..output.width() {
-        //     for y in 0..output.height() {
-        //         let pixel1 = output.get_pixel(x, y);
-        //         let pixel2 = expected.get_pixel(x, y);
-        //         let original_pixel = original.get_pixel(x, y);
-        //         if pixel1 != pixel2 {
-        //             println!("position: {}, {}, original: {:?}, output: {:?}, expected: {:?}", x, y, original_pixel, pixel1, pixel2);
-        //         }
-        //     }
-        // }
+        let original = image::open("tests/original.png").unwrap().into_rgba8();
+        let output = image::open(output).unwrap().into_rgba8();
+        let expected = image::open("tests/alpha_bleeding_using_c.png")
+            .unwrap()
+            .into_rgba8();
+        // assert_eq!(output, expected);
+        for y in 0..output.height() {
+            for x in 0..output.width() {
+                let pixel1 = output.get_pixel(x, y);
+                let pixel2 = expected.get_pixel(x, y);
+                let original_pixel = original.get_pixel(x, y);
+
+                if pixel1 != pixel2 {
+                    println!(
+                        "position: {}, {}, original: {:?}, output: {:?}, expected: {:?}",
+                        x, y, original_pixel, pixel1, pixel2
+                    );
+                }
+            }
+        }
     }
 }
