@@ -1,27 +1,114 @@
 use image::{ImageResult, Rgba, RgbaImage};
 
-fn get_pixels_around(image: &RgbaImage, x: u32, y: u32) -> Vec<(Rgba<u8>, u32, u32)> {
-    let mut pixels = Vec::new();
-    for i in -1..2 {
-        for j in -1..2 {
-            if i == 0 && j == 0 {
-                continue;
-            }
-            let x = x as i32 + i;
-            let y = y as i32 + j;
-            if x < 0 || y < 0 {
-                continue;
-            }
-            let x = x as u32;
-            let y = y as u32;
-            if x >= image.width() || y >= image.height() {
-                continue;
-            }
-            let pixel = image.get_pixel(x, y);
-            pixels.push((*pixel, x, y));
+struct Position {
+    x: u32,
+    y: u32,
+}
+
+struct AlphaBleeder {
+    width: u32,
+    height: u32,
+    processed_pixels_map: Vec<bool>,
+    pending_clear_pixels: Vec<Position>,
+}
+
+trait RgbaAccessor {
+    fn r(&self) -> u8;
+    fn g(&self) -> u8;
+    fn b(&self) -> u8;
+    fn a(&self) -> u8;
+}
+
+impl RgbaAccessor for Rgba<u8> {
+    fn r(&self) -> u8 {
+        self[0]
+    }
+    fn g(&self) -> u8 {
+        self[1]
+    }
+    fn b(&self) -> u8 {
+        self[2]
+    }
+    fn a(&self) -> u8 {
+        self[3]
+    }
+}
+
+impl AlphaBleeder {
+    fn run(&mut self, target: &mut RgbaImage) {
+        let mut next_pass_pixels = self.setup(target);
+        while !next_pass_pixels.is_empty() {
+            next_pass_pixels = self.run_single_pass(next_pass_pixels, target)
         }
     }
-    pixels
+    fn setup(&mut self, target: &mut RgbaImage) -> Vec<Position> {
+        (self.width, self.height) = (target.width(), target.height());
+        self.reset_processed_pixels_map();
+
+        let mut next_pass_pixels = Vec::new();
+        for y in 0..self.height {
+            for x in 0..self.width {
+                if target.get_pixel(x, y).a() == 0 {
+                    if AlphaBleeder::has_opaque_pixel_around(target, x, y) {
+                        next_pass_pixels.push(Position { x, y });
+                        self.mark_pixel_processed(x, y);
+                    }
+                } else {
+                    self.mark_pixel_processed(x, y);
+                }
+            }
+        }
+        next_pass_pixels
+    }
+
+    fn reset_processed_pixels_map(&mut self) {
+        self.processed_pixels_map = vec![false; (self.width * self.height) as usize];
+    }
+
+    fn mark_pixel_processed(&mut self, x: u32, y: u32) {
+        let index = self.get_pixel_index(x, y);
+        self.processed_pixels_map[index] = true;
+    }
+
+    fn is_pixel_processed(&self, x: u32, y: u32) -> bool {
+        self.processed_pixels_map[self.get_pixel_index(x, y)]
+    }
+
+    fn get_pixel_index(&self, x: u32, y: u32) -> usize {
+        (self.width * y + x) as usize
+    }
+
+    fn run_single_pass(&mut self, pixels: Vec<Position>, target: &mut RgbaImage) -> Vec<Position> {}
+
+    fn get_pixels_around(image: &RgbaImage, x: u32, y: u32) -> Vec<(Rgba<u8>, u32, u32)> {
+        let mut pixels = Vec::new();
+        for i in -1..2 {
+            for j in -1..2 {
+                if i == 0 && j == 0 {
+                    continue;
+                }
+                let x = x as i32 + i;
+                let y = y as i32 + j;
+                if x < 0 || y < 0 {
+                    continue;
+                }
+                let x = x as u32;
+                let y = y as u32;
+                if x >= image.width() || y >= image.height() {
+                    continue;
+                }
+                let pixel = image.get_pixel(x, y);
+                pixels.push((*pixel, x, y));
+            }
+        }
+        pixels
+    }
+
+    fn has_opaque_pixel_around(image: &RgbaImage, x: u32, y: u32) -> bool {
+        AlphaBleeder::get_pixels_around(image, x, y)
+            .iter()
+            .any(|p| p.0.a() > 0)
+    }
 }
 
 fn perform_alpha_bleeding(target: &mut RgbaImage) {
@@ -98,9 +185,7 @@ mod tests {
         let result = perform_alpha_bleeding_aux(original, output);
         assert!(matches!(result, Ok(_)));
         let output = image::open(output).unwrap().into_rgba8();
-        let expected = image::open(compared)
-            .unwrap()
-            .into_rgba8();
+        let expected = image::open(compared).unwrap().into_rgba8();
         assert_eq!(output, expected);
     }
 }
