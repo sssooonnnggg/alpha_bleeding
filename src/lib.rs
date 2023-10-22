@@ -76,23 +76,23 @@ struct AlphaBleeder {
 }
 
 impl AlphaBleeder {
-    fn execute(&mut self, target: &mut RgbaImage) {
-        let mut next = self.setup(target);
+    fn execute(&mut self, image: &mut RgbaImage) {
+        let mut next = self.setup(image);
         while !next.is_empty() {
-            next = self.single_pass(next, target)
+            next = self.single_pass(next, image)
         }
-        self.finalize(target);
+        self.finalize(image);
     }
 
-    fn setup(&mut self, target: &mut RgbaImage) -> Vec<Position> {
-        (self.width, self.height) = (target.width(), target.height());
+    fn setup(&mut self, image: &mut RgbaImage) -> Vec<Position> {
+        (self.width, self.height) = (image.width(), image.height());
         self.marks = PixelMarks::new(self.width, self.height);
 
         let mut next = Vec::new();
         for y in 0..self.height {
             for x in 0..self.width {
-                if target.get_pixel(x, y).is_transparent() {
-                    if AlphaBleeder::has_opaque_neighbor(target, x, y) {
+                if image.get_pixel(x, y).is_transparent() {
+                    if AlphaBleeder::has_opaque_neighbor(image, x, y) {
                         next.push(Position { x, y });
                         self.marks.set(x, y, true);
                     }
@@ -104,11 +104,11 @@ impl AlphaBleeder {
         next
     }
 
-    fn single_pass(&mut self, pixels: Vec<Position>, target: &mut RgbaImage) -> Vec<Position> {
+    fn single_pass(&mut self, pixels: Vec<Position>, image: &mut RgbaImage) -> Vec<Position> {
         let mut should_bleeding = Vec::new();
         let mut next = Vec::new();
         for Position { x, y } in pixels.into_iter() {
-            let neighbors = AlphaBleeder::find_neighbors(target, x, y);
+            let neighbors = AlphaBleeder::find_neighbors(image, x, y);
             let (mut r, mut g, mut b) = (0, 0, 0);
             let mut count = 0;
             for (pixel, x, y) in neighbors.into_iter() {
@@ -127,7 +127,7 @@ impl AlphaBleeder {
             self.pending_clear.push(Position { x, y });
         }
         for &(x, y, pixel) in should_bleeding.iter() {
-            target.put_pixel(x, y, pixel);
+            image.put_pixel(x, y, pixel);
         }
         next
     }
@@ -162,19 +162,18 @@ impl AlphaBleeder {
             .any(|p| p.0.a() > 0)
     }
 
-    fn finalize(&mut self, target: &mut RgbaImage) {
+    fn finalize(&mut self, image: &mut RgbaImage) {
         for &Position { x, y } in self.pending_clear.iter() {
-            target.get_pixel_mut(x, y).set_transparent()
+            image.get_pixel_mut(x, y).set_transparent()
         }
     }
 }
 
-pub fn alpha_bleeding(from: &str, to: &str) -> ImageResult<()> {
-    let source = image::open(from)?.into_rgba8();
-    let mut target = source.clone();
+pub fn alpha_bleeding(input: &str, output: &str) -> ImageResult<()> {
+    let mut image = image::open(input)?.into_rgba8();
     let mut bleeder = AlphaBleeder::default();
-    bleeder.execute(&mut target);
-    target.save(to)
+    bleeder.execute(&mut image);
+    image.save(output)
 }
 
 #[cfg(test)]
