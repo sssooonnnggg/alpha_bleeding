@@ -10,7 +10,7 @@ on:
 
 jobs:
   create-release:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: taiki-e/create-gh-release-action@v1
@@ -19,10 +19,18 @@ jobs:
 
   upload-assets:
     needs: create-release
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
-          bin: alpha_bleeding
-          token: ${{ secrets.GITHUB_TOKEN }}
+            bin: alpha_bleeding
+            tar: unix
+            zip: windows
+            token: ${{ secrets.GITHUB_TOKEN }}
