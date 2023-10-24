@@ -16,7 +16,7 @@ Arguments:
     [OUTPUT] The path where the fixed image will be saved. If an output path is not provided, the original input image will be replaced with the fixed one.
 ```
 
-### Use as a lib
+### Use as a library
 
 ```rs
 use alpha_bleeding::alpha_bleeding;
