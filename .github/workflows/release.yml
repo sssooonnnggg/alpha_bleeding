@@ -10,7 +10,7 @@ on:
 
 jobs:
   create-release:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: taiki-e/create-gh-release-action@v1
@@ -25,5 +25,4 @@ jobs:
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: alpha_bleeding
-          # (required) GitHub token for uploading assets to GitHub Releases.
           token: ${{ secrets.GITHUB_TOKEN }}
