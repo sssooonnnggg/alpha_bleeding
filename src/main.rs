@@ -7,9 +7,10 @@ use clap::{Parser};
 #[command(author, version, about, long_about = None)]
 #[command(arg_required_else_help(true))]
 struct Cli {
-    /// Input image path to be processed
+    /// The path of the image to be fixed.
     input: Option<String>,
-    /// Output image path, if not provided, replace the input image
+    /// The path where the fixed image will be saved. 
+    /// If an output path is not provided, the original input image will be replaced with the fixed one.
     ouptut: Option<String>,
 }
 

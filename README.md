@@ -12,8 +12,8 @@ Similar project:
 Usage: alpha_bleeding [INPUT] [OUPTUT]
 
 Arguments:
-  [INPUT]   Input image path to be processed
-  [OUPTUT]  Output image path, if not provided, replace the input image
+    [INPUT] The path of the image to be fixed.
+    [OUTPUT] The path where the fixed image will be saved. If an output path is not provided, the original input image will be replaced with the fixed one.
 ```
 
 ### Use as a lib
